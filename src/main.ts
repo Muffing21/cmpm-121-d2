@@ -39,6 +39,7 @@ class Point {
 let lines: Point[][] = [];
 let currentLine: Point[] | null = null;
 const zero = 0;
+const one = 1;
 const cursor = { active: false, x: 0, y: 0 };
 
 const drawingEvent = new Event("drawing-changed");
@@ -83,11 +84,11 @@ clearButton.addEventListener("click", () => {
 });
 
 function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(zero, zero, canvas.width, canvas.height);
   for (const line of lines) {
-    if (line.length > 1) {
+    if (line.length > one) {
       ctx.beginPath();
-      const { x, y } = line[0];
+      const { x, y } = line[zero];
       ctx.moveTo(x, y);
       for (const { x, y } of line) {
         ctx.lineTo(x, y);
