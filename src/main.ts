@@ -27,39 +27,45 @@ app.append(clearButton);
 
 const ctx = canvas.getContext("2d")!;
 
-interface Draw {
-  active: boolean;
-  x: number;
-  y: number;
-}
+// interface Draw {
+//   active: boolean;
+//   x: number;
+//   y: number;
+// }
 
-const drawInfo: Draw = {
-  active: false,
-  x: 0,
-  y: 0,
-};
+// const drawInfo: Draw = {
+//   active: false,
+//   x: 0,
+//   y: 0,
+// };
+
+let active = false;
+
+let x = 0;
+let y = 0;
+const origin = 0;
 
 canvas.addEventListener("mousedown", (e) => {
-  drawInfo.active = true;
-  drawInfo.x = e.offsetX;
-  drawInfo.y = e.offsetY;
+  active = true;
+  x = e.offsetX;
+  y = e.offsetY;
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (drawInfo.active) {
+  if (active) {
     ctx.beginPath();
-    ctx.moveTo(drawInfo.x, drawInfo.y);
+    ctx.moveTo(x, y);
     ctx.lineTo(e.offsetX, e.offsetY);
     ctx.stroke();
-    drawInfo.x = e.offsetX;
-    drawInfo.y = e.offsetY;
+    x = e.offsetX;
+    y = e.offsetY;
   }
 });
 
 canvas.addEventListener("mouseup", () => {
-  drawInfo.active = false;
+  active = false;
 });
 
 clearButton.addEventListener("click", () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(origin, origin, canvas.width, canvas.height);
 });
