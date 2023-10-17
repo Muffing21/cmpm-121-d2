@@ -27,45 +27,72 @@ app.append(clearButton);
 
 const ctx = canvas.getContext("2d")!;
 
-// interface Draw {
-//   active: boolean;
-//   x: number;
-//   y: number;
-// }
+class Point {
+  x: number;
+  y: number;
+  constructor(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
+}
 
-// const drawInfo: Draw = {
-//   active: false,
-//   x: 0,
-//   y: 0,
-// };
+let lines: Point[][] = [];
+let currentLine: Point[] | null = null;
+const zero = 0;
+const cursor = { active: false, x: 0, y: 0 };
 
-let active = false;
+const drawingEvent = new Event("drawing-changed");
 
-let x = 0;
-let y = 0;
-const origin = 0;
-
+//https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
-  active = true;
-  x = e.offsetX;
-  y = e.offsetY;
+  cursor.active = true;
+  cursor.x = e.offsetX;
+  cursor.y = e.offsetY;
+  console.log(cursor.x);
+
+  currentLine = [];
+  lines.push(currentLine);
+  const pointObj = new Point(cursor.x, cursor.y);
+  currentLine.push(pointObj);
+
+  canvas.dispatchEvent(drawingEvent);
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (active) {
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(e.offsetX, e.offsetY);
-    ctx.stroke();
-    x = e.offsetX;
-    y = e.offsetY;
+  if (cursor.active) {
+    cursor.x = e.offsetX;
+    cursor.y = e.offsetY;
+    const pointObj = new Point(cursor.x, cursor.y);
+    currentLine!.push(pointObj);
+    canvas.dispatchEvent(drawingEvent);
   }
 });
 
 canvas.addEventListener("mouseup", () => {
-  active = false;
+  cursor.active = false;
+  currentLine = null;
+});
+
+canvas.addEventListener("drawing-changed", () => {
+  redraw();
 });
 
 clearButton.addEventListener("click", () => {
-  ctx.clearRect(origin, origin, canvas.width, canvas.height);
+  ctx.clearRect(zero, zero, canvas.width, canvas.height);
+  lines = [];
 });
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const line of lines) {
+    if (line.length > 1) {
+      ctx.beginPath();
+      const { x, y } = line[0];
+      ctx.moveTo(x, y);
+      for (const { x, y } of line) {
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+}
