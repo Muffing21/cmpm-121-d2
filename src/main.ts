@@ -17,6 +17,12 @@ const canvas: HTMLCanvasElement = document.createElement("canvas");
 const clearButton = document.createElement("button");
 clearButton.innerHTML = "clear";
 
+const undoButton = document.createElement("button");
+undoButton.innerHTML = "undo";
+
+const redoButton = document.createElement("button");
+redoButton.innerHTML = "redo";
+
 canvas.height = 256;
 canvas.width = 256;
 
@@ -24,6 +30,8 @@ app.append(canvas);
 app.append(header);
 app.append(appTitle);
 app.append(clearButton);
+app.append(undoButton);
+app.append(redoButton);
 
 const ctx = canvas.getContext("2d")!;
 
@@ -37,6 +45,7 @@ class Point {
 }
 
 let lines: Point[][] = [];
+const undoStack: Point[][] = [];
 let currentLine: Point[] | null = null;
 const zero = 0;
 const one = 1;
@@ -49,7 +58,6 @@ canvas.addEventListener("mousedown", (e) => {
   cursor.active = true;
   cursor.x = e.offsetX;
   cursor.y = e.offsetY;
-  console.log(cursor.x);
 
   currentLine = [];
   lines.push(currentLine);
@@ -81,6 +89,22 @@ canvas.addEventListener("drawing-changed", () => {
 clearButton.addEventListener("click", () => {
   ctx.clearRect(zero, zero, canvas.width, canvas.height);
   lines = [];
+});
+
+undoButton.addEventListener("click", () => {
+  const lastAction = lines.pop();
+  if (lastAction) {
+    undoStack.push(lastAction);
+    canvas.dispatchEvent(drawingEvent);
+  }
+});
+
+redoButton.addEventListener("click", () => {
+  const lastAction = undoStack.pop();
+  if (lastAction) {
+    lines.push(lastAction);
+    canvas.dispatchEvent(drawingEvent);
+  }
 });
 
 function redraw() {
