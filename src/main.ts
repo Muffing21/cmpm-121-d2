@@ -54,7 +54,11 @@ class CursorCommand {
   }
   execute() {
     ctx.font = `${this.cursorSize}px monospace`;
-    ctx.fillText("*", this.x - 8, this.y + 16);
+    ctx.fillText(
+      "*",
+      this.x - (one + one) * (one + one) * (one + one),
+      this.y + (one + one) * (one + one) * (one + one) * (one + one)
+    );
   }
 }
 
@@ -125,7 +129,7 @@ canvas.addEventListener("mousemove", (e) => {
   if (e.buttons == one) {
     cursorCommand = null;
     currentLineCommand?.points.push(
-      new CursorCommand(e.offsetX, e.offsetY, cursorSize),
+      new CursorCommand(e.offsetX, e.offsetY, cursorSize)
     );
     notify("drawing-changed");
   }
