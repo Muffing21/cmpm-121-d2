@@ -46,13 +46,15 @@ const ctx = canvas.getContext("2d")!;
 class CursorCommand {
   x: number;
   y: number;
-  constructor(x: number, y: number) {
+  cursorSize: number;
+  constructor(x: number, y: number, cursorSize: number) {
     this.x = x;
     this.y = y;
+    this.cursorSize = cursorSize;
   }
   execute() {
-    ctx.font = "32px monospace";
-    // ctx.fillText("*", this.x - 8, this.y + 16);
+    ctx.font = `${this.cursorSize}px monospace`;
+    ctx.fillText("*", this.x - 8, this.y + 16);
   }
 }
 
@@ -60,7 +62,7 @@ class LineCommand {
   points: CursorCommand[];
   thickness: number;
   constructor(x: number, y: number, thickness: number) {
-    this.points = [new CursorCommand(x, y)];
+    this.points = [new CursorCommand(x, y, cursorSize)];
     this.thickness = thickness;
   }
   execute(ctx: CanvasRenderingContext2D) {
@@ -76,7 +78,7 @@ class LineCommand {
     ctx.stroke();
   }
   grow(x: number, y: number) {
-    this.points.push(new CursorCommand(x, y));
+    this.points.push(new CursorCommand(x, y, this.thickness));
   }
 }
 
@@ -90,11 +92,12 @@ const commands: LineCommand[] = [];
 const redoCommands: LineCommand[] = [];
 
 let lineWidth = 4;
+let cursorSize = 32;
 
 let cursorCommand: CursorCommand | null = null;
 
 bus.addEventListener("drawing-changed", redraw);
-bus.addEventListener("drawing-changed", redraw);
+bus.addEventListener("cursor-changed", redraw);
 
 // function tick() {
 //   redraw();
@@ -108,6 +111,7 @@ const one = 1;
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
+  cursorCommand = null;
   currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
   commands.push(currentLineCommand);
   redoCommands.splice(zero, redoCommands.length);
@@ -115,17 +119,21 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  cursorCommand = new CursorCommand(e.offsetX, e.offsetY);
+  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
   notify("cursor-changed");
 
   if (e.buttons == one) {
-    currentLineCommand?.points.push(new CursorCommand(e.offsetX, e.offsetY));
+    cursorCommand = null;
+    currentLineCommand?.points.push(
+      new CursorCommand(e.offsetX, e.offsetY, cursorSize),
+    );
     notify("drawing-changed");
   }
 });
 
-canvas.addEventListener("mouseup", () => {
+canvas.addEventListener("mouseup", (e) => {
   currentLineCommand = null;
+  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
   notify("drawing-changed");
 });
 
@@ -153,11 +161,23 @@ redoButton.addEventListener("click", () => {
 thinButton.addEventListener("click", () => {
   console.log("thin!");
   lineWidth = one + one;
+  cursorSize = lineWidth * (one + one + one + one);
 });
 
 thickButton.addEventListener("click", () => {
   console.log("thick!");
   lineWidth = (one + one) * (one + one) * (one + one);
+  cursorSize = lineWidth * (one + one + one + one);
+});
+
+canvas.addEventListener("mouseout", () => {
+  cursorCommand = null;
+  notify("cursor-changed");
+});
+
+canvas.addEventListener("mouseenter", (e) => {
+  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
+  notify("cursor-changed");
 });
 
 function redraw() {
