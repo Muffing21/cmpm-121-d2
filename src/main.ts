@@ -38,8 +38,8 @@ app.append(appTitle);
 app.append(clearButton);
 app.append(undoButton);
 app.append(redoButton);
-// app.append(thinButton);
-// app.append(thickButton);
+app.append(thinButton);
+app.append(thickButton);
 
 const ctx = canvas.getContext("2d")!;
 
@@ -58,14 +58,14 @@ class CursorCommand {
 
 class LineCommand {
   points: CursorCommand[];
-  // thickness: number;
-  constructor(x: number, y: number) {
+  thickness: number;
+  constructor(x: number, y: number, thickness: number) {
     this.points = [new CursorCommand(x, y)];
-    // this.thickness = thickness;
+    this.thickness = thickness;
   }
   execute(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = "black";
-    // ctx.lineWidth = this.thickness;
+    ctx.lineWidth = this.thickness;
     ctx.beginPath();
     const { x, y } = this.points[zero];
     ctx.moveTo(x, y);
@@ -89,6 +89,8 @@ function notify(name: string) {
 const commands: LineCommand[] = [];
 const redoCommands: LineCommand[] = [];
 
+let lineWidth = 4;
+
 let cursorCommand: CursorCommand | null = null;
 
 bus.addEventListener("drawing-changed", redraw);
@@ -106,7 +108,7 @@ const one = 1;
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
-  currentLineCommand = new LineCommand(e.offsetX, e.offsetY);
+  currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
   commands.push(currentLineCommand);
   redoCommands.splice(zero, redoCommands.length);
   notify("drawing-changed");
@@ -146,6 +148,16 @@ redoButton.addEventListener("click", () => {
     commands.push(lastAction);
     notify("drawing-changed");
   }
+});
+
+thinButton.addEventListener("click", () => {
+  console.log("thin!");
+  lineWidth = one + one;
+});
+
+thickButton.addEventListener("click", () => {
+  console.log("thick!");
+  lineWidth = (one + one) * (one + one) * (one + one);
 });
 
 function redraw() {
