@@ -139,9 +139,9 @@ canvas.addEventListener("mouseup", (e) => {
   notify("drawing-changed");
 });
 
-for (let i = 0; i < tools.length; i++) {
-  tools[i].button.addEventListener("click", () => {
-    eventListener(tools[i]);
+for (const tool of tools) {
+  tool.button.addEventListener("click", () => {
+    eventListener(tool);
   });
 }
 
@@ -192,9 +192,9 @@ function redraw() {
 }
 
 function createButtons(buttons: Buttons[]) {
-  for (let i = 0; i < buttons.length; i++) {
-    buttons[i].button.textContent = buttons[i].buttonText;
-    app.append(buttons[i].button);
+  for (const butt of buttons) {
+    butt.button.textContent = butt.buttonText;
+    app.append(butt.button);
   }
   const header = document.createElement("h1");
   header.innerHTML = "Harry's Game";
