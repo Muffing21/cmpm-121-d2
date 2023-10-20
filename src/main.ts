@@ -2,46 +2,9 @@ import "./style.css";
 
 const app: HTMLDivElement = document.querySelector("#app")!;
 
-const gameName = "Harry's Game";
-
-document.title = gameName;
-
-const header = document.createElement("h1");
-header.innerHTML = gameName;
-
-const appTitle: HTMLElement = document.createElement("h1");
-appTitle.innerHTML = "Draw";
-
-const canvas: HTMLCanvasElement = document.createElement("canvas");
-
-const clearButton = document.createElement("button");
-clearButton.innerHTML = "clear";
-
-const undoButton = document.createElement("button");
-undoButton.innerHTML = "undo";
-
-const redoButton = document.createElement("button");
-redoButton.innerHTML = "redo";
-
-const thinButton = document.createElement("button");
-thinButton.innerHTML = "thin";
-
-const thickButton = document.createElement("button");
-thickButton.innerHTML = "thick";
-
-canvas.height = 256;
-canvas.width = 256;
-
-app.append(canvas);
-app.append(header);
-app.append(appTitle);
-app.append(clearButton);
-app.append(undoButton);
-app.append(redoButton);
-app.append(thinButton);
-app.append(thickButton);
-
-const ctx = canvas.getContext("2d")!;
+//due to magic numbers...
+const zero = 0;
+const one = 1;
 
 class CursorCommand {
   x: number;
@@ -86,6 +49,43 @@ class LineCommand {
   }
 }
 
+//refactor attempt?
+interface Buttons {
+  button: HTMLButtonElement;
+  buttonText: string;
+}
+
+const tools: Buttons[] = [
+  {
+    button: document.createElement("button"),
+    buttonText: "clear",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "undo",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "redo",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "thin",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "thick",
+  },
+];
+
+createButtons(tools); //create all the clickable buttons
+
+const canvas: HTMLCanvasElement = document.createElement("canvas");
+canvas.height = 256;
+canvas.width = 256;
+const ctx = canvas.getContext("2d")!;
+app.append(canvas);
+
 const bus = new EventTarget();
 
 function notify(name: string) {
@@ -110,8 +110,6 @@ bus.addEventListener("cursor-changed", redraw);
 // tick();
 
 let currentLineCommand: LineCommand | null = null;
-const zero = 0;
-const one = 1;
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
@@ -141,38 +139,11 @@ canvas.addEventListener("mouseup", (e) => {
   notify("drawing-changed");
 });
 
-clearButton.addEventListener("click", () => {
-  commands.splice(zero, commands.length);
-  notify("drawing-changed");
-});
-
-undoButton.addEventListener("click", () => {
-  const lastAction = commands.pop();
-  if (lastAction) {
-    redoCommands.push(lastAction);
-    notify("drawing-changed");
-  }
-});
-
-redoButton.addEventListener("click", () => {
-  const lastAction = redoCommands.pop();
-  if (lastAction) {
-    commands.push(lastAction);
-    notify("drawing-changed");
-  }
-});
-
-thinButton.addEventListener("click", () => {
-  console.log("thin!");
-  lineWidth = one + one;
-  cursorSize = lineWidth * (one + one + one + one);
-});
-
-thickButton.addEventListener("click", () => {
-  console.log("thick!");
-  lineWidth = (one + one) * (one + one) * (one + one);
-  cursorSize = lineWidth * (one + one + one + one);
-});
+for (let i = 0; i < tools.length; i++) {
+  tools[i].button.addEventListener("click", () => {
+    eventListener(tools[i]);
+  });
+}
 
 canvas.addEventListener("mouseout", () => {
   cursorCommand = null;
@@ -184,6 +155,32 @@ canvas.addEventListener("mouseenter", (e) => {
   notify("cursor-changed");
 });
 
+//refactor attempt for clickable buttons
+function eventListener(button: Buttons) {
+  if (button.buttonText == "clear") {
+    commands.splice(zero, commands.length);
+    notify("drawing-changed");
+  } else if (button.buttonText == "undo") {
+    const lastAction = commands.pop();
+    if (lastAction) {
+      redoCommands.push(lastAction);
+      notify("drawing-changed");
+    }
+  } else if (button.buttonText == "redo") {
+    const lastAction = redoCommands.pop();
+    if (lastAction) {
+      commands.push(lastAction);
+      notify("drawing-changed");
+    }
+  } else if (button.buttonText == "thin") {
+    lineWidth = one + one;
+    cursorSize = lineWidth * (one + one + one + one + one + one);
+  } else if (button.buttonText == "thick") {
+    lineWidth = (one + one) * (one + one) * (one + one);
+    cursorSize = lineWidth * (one + one + one + one);
+  }
+}
+
 function redraw() {
   ctx.clearRect(zero, zero, canvas.width, canvas.height);
 
@@ -192,4 +189,18 @@ function redraw() {
   if (cursorCommand) {
     cursorCommand.execute();
   }
+}
+
+function createButtons(buttons: Buttons[]) {
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].button.textContent = buttons[i].buttonText;
+    app.append(buttons[i].button);
+  }
+  const header = document.createElement("h1");
+  header.innerHTML = "Harry's Game";
+
+  const appTitle: HTMLElement = document.createElement("h1");
+  appTitle.innerHTML = "Draw";
+  app.append(header);
+  app.append(appTitle);
 }
