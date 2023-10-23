@@ -9,28 +9,42 @@ const one = 1;
 class CursorCommand {
   x: number;
   y: number;
-  cursorSize: number;
-  constructor(x: number, y: number, cursorSize: number) {
+  cursorSize?: number;
+  sticker?: string;
+  constructor(x: number, y: number, cursorSize?: number, sticker?: string) {
     this.x = x;
     this.y = y;
     this.cursorSize = cursorSize;
+    this.sticker = sticker;
   }
   execute() {
     ctx.font = `${this.cursorSize}px monospace`;
     ctx.fillText(
       "*",
       this.x - (one + one) * (one + one) * (one + one),
-      this.y + (one + one) * (one + one) * (one + one) * (one + one)
+      this.y + (one + one) * (one + one) * (one + one) * (one + one),
     );
+  }
+  stickerPreview() {
+    if (this.sticker) {
+      // ctx.font = `${this.cursorSize}px monospace`;
+      ctx.fillText(this.sticker, this.x, this.y);
+    }
   }
 }
 
 class LineCommand {
   points: CursorCommand[];
   thickness: number;
-  constructor(x: number, y: number, thickness: number) {
+  sticker?: string;
+  x: number;
+  y: number;
+  constructor(x: number, y: number, thickness: number, sticker?: string) {
     this.points = [new CursorCommand(x, y, cursorSize)];
     this.thickness = thickness;
+    this.sticker = sticker;
+    this.x = x;
+    this.y = y;
   }
   execute(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = "black";
@@ -39,13 +53,25 @@ class LineCommand {
     const { x, y } = this.points[zero];
     ctx.moveTo(x, y);
     for (const { x, y } of this.points) {
-      const k = 2;
-      ctx.lineTo(x + Math.random() * k, y + Math.random() * k);
+      ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
   grow(x: number, y: number) {
     this.points.push(new CursorCommand(x, y, this.thickness));
+  }
+  placeSticker(ctx: CanvasRenderingContext2D) {
+    if (this.sticker) {
+      ctx.fillText(this.sticker, this.x, this.y);
+      ctx.lineWidth = this.thickness;
+      ctx.beginPath();
+      const { x, y } = this.points[zero];
+      ctx.moveTo(x, y);
+      for (const { x, y } of this.points) {
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
   }
 }
 
@@ -76,6 +102,18 @@ const tools: Buttons[] = [
     button: document.createElement("button"),
     buttonText: "thick",
   },
+  {
+    button: document.createElement("button"),
+    buttonText: "💀",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "🎃",
+  },
+  {
+    button: document.createElement("button"),
+    buttonText: "👻",
+  },
 ];
 
 createButtons(tools); //create all the clickable buttons
@@ -93,41 +131,70 @@ function notify(name: string) {
 }
 
 const commands: LineCommand[] = [];
+const stickerCommands: LineCommand[] = [];
 const redoCommands: LineCommand[] = [];
 
 let lineWidth = 4;
 let cursorSize = 32;
+let currentSticker: string | null = null;
 
 let cursorCommand: CursorCommand | null = null;
 
 bus.addEventListener("drawing-changed", redraw);
 bus.addEventListener("cursor-changed", redraw);
-
-// function tick() {
-//   redraw();
-//   requestAnimationFrame(tick);
-// }
-// tick();
+bus.addEventListener("tool-moved", stickerDraw);
 
 let currentLineCommand: LineCommand | null = null;
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
   cursorCommand = null;
-  currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
-  commands.push(currentLineCommand);
-  redoCommands.splice(zero, redoCommands.length);
-  notify("drawing-changed");
+  if (currentSticker) {
+    currentLineCommand = new LineCommand(
+      e.offsetX,
+      e.offsetY,
+      lineWidth,
+      currentSticker,
+    );
+    stickerCommands.push(currentLineCommand);
+    redoCommands.splice(zero, redoCommands.length);
+    notify("tool-moved");
+  } else {
+    currentLineCommand = new LineCommand(
+      e.offsetX,
+      e.offsetY,
+      lineWidth,
+      undefined,
+    );
+    commands.push(currentLineCommand);
+    redoCommands.splice(zero, redoCommands.length);
+    notify("drawing-changed");
+  }
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
-  notify("cursor-changed");
+  if (currentSticker) {
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      undefined,
+      currentSticker,
+    );
+    notify("tool-moved");
+  } else {
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      cursorSize,
+      undefined,
+    );
+    notify("tool-moved");
+  }
 
   if (e.buttons == one) {
     cursorCommand = null;
     currentLineCommand?.points.push(
-      new CursorCommand(e.offsetX, e.offsetY, cursorSize)
+      new CursorCommand(e.offsetX, e.offsetY, cursorSize),
     );
     notify("drawing-changed");
   }
@@ -135,8 +202,23 @@ canvas.addEventListener("mousemove", (e) => {
 
 canvas.addEventListener("mouseup", (e) => {
   currentLineCommand = null;
-  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
-  notify("drawing-changed");
+  if (currentSticker) {
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      undefined,
+      currentSticker,
+    );
+    notify("tool-moved");
+  } else {
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      cursorSize,
+      undefined,
+    );
+    notify("cursor-changed");
+  }
 });
 
 for (const tool of tools) {
@@ -147,12 +229,22 @@ for (const tool of tools) {
 
 canvas.addEventListener("mouseout", () => {
   cursorCommand = null;
-  notify("cursor-changed");
+  notify("tool-moved");
 });
 
 canvas.addEventListener("mouseenter", (e) => {
-  cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
-  notify("cursor-changed");
+  if (currentSticker) {
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      undefined,
+      currentSticker,
+    );
+    notify("tool-moved");
+  } else {
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
+    notify("cursor-changed");
+  }
 });
 
 //refactor attempt for clickable buttons
@@ -173,11 +265,23 @@ function eventListener(button: Buttons) {
       notify("drawing-changed");
     }
   } else if (button.buttonText == "thin") {
+    currentSticker = null;
     lineWidth = one + one;
     cursorSize = lineWidth * (one + one + one + one + one + one);
   } else if (button.buttonText == "thick") {
+    currentSticker = null;
     lineWidth = (one + one) * (one + one) * (one + one);
     cursorSize = lineWidth * (one + one + one + one);
+  }
+  //code for stickers here
+  else if (
+    button.buttonText == "💀" ||
+    button.buttonText == "🎃" ||
+    button.buttonText == "👻"
+  ) {
+    currentSticker = button.buttonText;
+    console.log(currentSticker);
+    // notify("tool-moved");
   }
 }
 
@@ -188,6 +292,16 @@ function redraw() {
 
   if (cursorCommand) {
     cursorCommand.execute();
+  }
+}
+
+function stickerDraw() {
+  ctx.clearRect(zero, zero, canvas.width, canvas.height);
+
+  stickerCommands.forEach((cmd) => cmd.placeSticker(ctx));
+
+  if (cursorCommand) {
+    cursorCommand.stickerPreview();
   }
 }
 
