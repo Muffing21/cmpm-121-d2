@@ -5,46 +5,65 @@ const app: HTMLDivElement = document.querySelector("#app")!;
 //due to magic numbers...
 const zero = 0;
 const one = 1;
+let currentSticker: string | null = null;
 
 class CursorCommand {
   x: number;
   y: number;
-  cursorSize?: number;
-  sticker?: string;
-  constructor(x: number, y: number, cursorSize?: number, sticker?: string) {
+  cursorFontSize: number;
+  cursorSticker: string;
+  constructor(
+    x: number,
+    y: number,
+    cursorFontSize: number,
+    cursorSticker: string,
+  ) {
     this.x = x;
     this.y = y;
-    this.cursorSize = cursorSize;
-    this.sticker = sticker;
+    this.cursorFontSize = cursorFontSize;
+    this.cursorSticker = cursorSticker;
   }
   execute() {
-    ctx.font = `${this.cursorSize}px monospace`;
+    ctx.font = `${this.cursorFontSize}px monospace`;
+
     ctx.fillText(
-      "*",
+      `${this.cursorSticker}`,
       this.x - (one + one) * (one + one) * (one + one),
       this.y + (one + one) * (one + one) * (one + one) * (one + one),
     );
   }
-  stickerPreview() {
-    if (this.sticker) {
-      // ctx.font = `${this.cursorSize}px monospace`;
-      ctx.fillText(this.sticker, this.x, this.y);
-    }
+}
+
+interface DrawingCommand {
+  execute(ctx: CanvasRenderingContext2D): void;
+}
+
+class Sticker implements DrawingCommand {
+  points: CursorCommand[];
+  cursorSticker: string;
+  x: number;
+  y: number;
+  constructor(x: number, y: number, cursorSticker: string) {
+    this.cursorSticker = cursorSticker;
+    this.points = [new CursorCommand(x, y, cursorSize, this.cursorSticker)];
+    this.x = x;
+    this.y = y;
+  }
+  execute(ctx: CanvasRenderingContext2D) {
+    // ctx.save();
+    ctx.fillText(this.cursorSticker, this.x, this.y);
+    // ctx.restore();
   }
 }
 
-class LineCommand {
+class LineCommand implements DrawingCommand {
   points: CursorCommand[];
   thickness: number;
-  sticker?: string;
-  x: number;
-  y: number;
-  constructor(x: number, y: number, thickness: number, sticker?: string) {
-    this.points = [new CursorCommand(x, y, cursorSize)];
+  cursorSticker: string;
+  constructor(x: number, y: number, thickness: number, cursorSticker: string) {
+    this.points = [new CursorCommand(x, y, thickness, cursorSticker)];
     this.thickness = thickness;
-    this.sticker = sticker;
-    this.x = x;
-    this.y = y;
+    this.cursorSticker = cursorSticker;
   }
   execute(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = "black";
@@ -56,22 +75,6 @@ class LineCommand {
       ctx.lineTo(x, y);
     }
     ctx.stroke();
-  }
-  grow(x: number, y: number) {
-    this.points.push(new CursorCommand(x, y, this.thickness));
-  }
-  placeSticker(ctx: CanvasRenderingContext2D) {
-    if (this.sticker) {
-      ctx.fillText(this.sticker, this.x, this.y);
-      ctx.lineWidth = this.thickness;
-      ctx.beginPath();
-      const { x, y } = this.points[zero];
-      ctx.moveTo(x, y);
-      for (const { x, y } of this.points) {
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
   }
 }
 
@@ -130,19 +133,16 @@ function notify(name: string) {
   bus.dispatchEvent(new Event(name));
 }
 
-const commands: LineCommand[] = [];
-const stickerCommands: LineCommand[] = [];
-const redoCommands: LineCommand[] = [];
+const commands: DrawingCommand[] = [];
+const redoCommands: DrawingCommand[] = [];
 
 let lineWidth = 4;
 let cursorSize = 32;
-let currentSticker: string | null = null;
 
 let cursorCommand: CursorCommand | null = null;
 
 bus.addEventListener("drawing-changed", redraw);
-bus.addEventListener("cursor-changed", redraw);
-bus.addEventListener("tool-moved", stickerDraw);
+bus.addEventListener("tool-moved", redraw);
 
 let currentLineCommand: LineCommand | null = null;
 
@@ -156,16 +156,6 @@ canvas.addEventListener("mousedown", (e) => {
       lineWidth,
       currentSticker,
     );
-    stickerCommands.push(currentLineCommand);
-    redoCommands.splice(zero, redoCommands.length);
-    notify("tool-moved");
-  } else {
-    currentLineCommand = new LineCommand(
-      e.offsetX,
-      e.offsetY,
-      lineWidth,
-      undefined,
-    );
     commands.push(currentLineCommand);
     redoCommands.splice(zero, redoCommands.length);
     notify("drawing-changed");
@@ -177,47 +167,36 @@ canvas.addEventListener("mousemove", (e) => {
     cursorCommand = new CursorCommand(
       e.offsetX,
       e.offsetY,
-      undefined,
+      cursorSize,
       currentSticker,
     );
-    notify("tool-moved");
-  } else {
-    cursorCommand = new CursorCommand(
-      e.offsetX,
-      e.offsetY,
-      cursorSize,
-      undefined,
-    );
-    notify("tool-moved");
   }
+  notify("tool-moved");
 
   if (e.buttons == one) {
     cursorCommand = null;
-    currentLineCommand?.points.push(
-      new CursorCommand(e.offsetX, e.offsetY, cursorSize),
-    );
+    if (currentSticker == "*") {
+      currentLineCommand?.points.push(
+        new CursorCommand(e.offsetX, e.offsetY, cursorSize, currentSticker),
+      );
+    }
     notify("drawing-changed");
   }
 });
 
 canvas.addEventListener("mouseup", (e) => {
-  currentLineCommand = null;
   if (currentSticker) {
-    cursorCommand = new CursorCommand(
-      e.offsetX,
-      e.offsetY,
-      undefined,
-      currentSticker,
-    );
-    notify("tool-moved");
-  } else {
+    if (currentSticker != "*") {
+      commands.push(new Sticker(e.offsetX, e.offsetY, currentSticker));
+    }
+    currentLineCommand = null;
     cursorCommand = new CursorCommand(
       e.offsetX,
       e.offsetY,
       cursorSize,
-      undefined,
+      currentSticker,
     );
-    notify("cursor-changed");
+    notify("drawing-changed");
   }
 });
 
@@ -233,18 +212,15 @@ canvas.addEventListener("mouseout", () => {
 });
 
 canvas.addEventListener("mouseenter", (e) => {
-  if (currentSticker) {
+  if (currentSticker == "*") {
     cursorCommand = new CursorCommand(
       e.offsetX,
       e.offsetY,
-      undefined,
+      cursorSize,
       currentSticker,
     );
-    notify("tool-moved");
-  } else {
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, cursorSize);
-    notify("cursor-changed");
   }
+  notify("tool-moved");
 });
 
 //refactor attempt for clickable buttons
@@ -265,23 +241,25 @@ function eventListener(button: Buttons) {
       notify("drawing-changed");
     }
   } else if (button.buttonText == "thin") {
-    currentSticker = null;
+    currentSticker = "*";
     lineWidth = one + one;
     cursorSize = lineWidth * (one + one + one + one + one + one);
   } else if (button.buttonText == "thick") {
-    currentSticker = null;
+    currentSticker = "*";
     lineWidth = (one + one) * (one + one) * (one + one);
     cursorSize = lineWidth * (one + one + one + one);
-  }
-  //code for stickers here
-  else if (
-    button.buttonText == "💀" ||
-    button.buttonText == "🎃" ||
-    button.buttonText == "👻"
-  ) {
-    currentSticker = button.buttonText;
-    console.log(currentSticker);
-    // notify("tool-moved");
+  } else if (button.buttonText == "💀") {
+    currentSticker = "💀";
+    lineWidth = (one + one) * (one + one) * (one + one);
+    cursorSize = lineWidth * (one + one + one + one);
+  } else if (button.buttonText == "🎃") {
+    currentSticker = "🎃";
+    lineWidth = (one + one) * (one + one) * (one + one);
+    cursorSize = lineWidth * (one + one + one + one);
+  } else if (button.buttonText == "👻") {
+    currentSticker = "👻";
+    lineWidth = (one + one) * (one + one) * (one + one);
+    cursorSize = lineWidth * (one + one + one + one);
   }
 }
 
@@ -292,16 +270,6 @@ function redraw() {
 
   if (cursorCommand) {
     cursorCommand.execute();
-  }
-}
-
-function stickerDraw() {
-  ctx.clearRect(zero, zero, canvas.width, canvas.height);
-
-  stickerCommands.forEach((cmd) => cmd.placeSticker(ctx));
-
-  if (cursorCommand) {
-    cursorCommand.stickerPreview();
   }
 }
 
