@@ -6,6 +6,7 @@ const app: HTMLDivElement = document.querySelector("#app")!;
 const zero = 0;
 const one = 1;
 let currentSticker: string | null = null;
+let stickerButton: HTMLButtonElement[] = [];
 
 class CursorCommand {
   x: number;
@@ -36,16 +37,15 @@ class CursorCommand {
 
 interface DrawingCommand {
   execute(ctx: CanvasRenderingContext2D): void;
+  drag(x: number, y: number): void;
 }
 
 class Sticker implements DrawingCommand {
-  points: CursorCommand[];
   cursorSticker: string;
   x: number;
   y: number;
   constructor(x: number, y: number, cursorSticker: string) {
     this.cursorSticker = cursorSticker;
-    this.points = [new CursorCommand(x, y, cursorSize, this.cursorSticker)];
     this.x = x;
     this.y = y;
   }
@@ -54,16 +54,19 @@ class Sticker implements DrawingCommand {
     ctx.fillText(this.cursorSticker, this.x, this.y);
     // ctx.restore();
   }
+  drag(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+  }
 }
 
 class LineCommand implements DrawingCommand {
-  points: CursorCommand[];
+  points: { x: number; y: number }[];
   thickness: number;
-  cursorSticker: string;
-  constructor(x: number, y: number, thickness: number, cursorSticker: string) {
-    this.points = [new CursorCommand(x, y, thickness, cursorSticker)];
+  constructor(x: number, y: number, thickness: number) {
+    //remove sticker, also just hold x and y rather than a point
+    this.points = [{ x, y }];
     this.thickness = thickness;
-    this.cursorSticker = cursorSticker;
   }
   execute(ctx: CanvasRenderingContext2D) {
     ctx.strokeStyle = "black";
@@ -76,9 +79,12 @@ class LineCommand implements DrawingCommand {
     }
     ctx.stroke();
   }
+  drag(x: number, y: number) {
+    this.points.push({ x, y });
+  }
 }
 
-//refactor attempt?
+//probably better to use enum
 interface Buttons {
   button: HTMLButtonElement;
   buttonText: string;
@@ -105,27 +111,27 @@ const tools: Buttons[] = [
     button: document.createElement("button"),
     buttonText: "thick",
   },
-  {
-    button: document.createElement("button"),
-    buttonText: "💀",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "🎃",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "👻",
-  },
 ];
 
-createButtons(tools); //create all the clickable buttons
+let stickers: string[] = ["💀", "🎃", "👻"];
 
 const canvas: HTMLCanvasElement = document.createElement("canvas");
 canvas.height = 256;
 canvas.width = 256;
 const ctx = canvas.getContext("2d")!;
 app.append(canvas);
+
+createButtons(tools); //create all the clickable non-sticker buttons
+
+//create all sticker buttons
+for (let i = 0; i < stickers.length; i++) {
+  stickerButton[i] = document.createElement("button");
+  stickerButton[i].innerHTML = stickers[i];
+  app.append(stickerButton[i]);
+  stickerButton[i].addEventListener("click", () => {
+    eventListenerSticker(stickerButton[i].innerHTML);
+  });
+}
 
 const bus = new EventTarget();
 
@@ -135,6 +141,7 @@ function notify(name: string) {
 
 const commands: DrawingCommand[] = [];
 const redoCommands: DrawingCommand[] = [];
+let currentStickerCommand: Sticker | null = null;
 
 let lineWidth = 4;
 let cursorSize = 32;
@@ -146,16 +153,22 @@ bus.addEventListener("tool-moved", redraw);
 
 let currentLineCommand: LineCommand | null = null;
 
+for (const tool of tools) {
+  tool.button.addEventListener("click", () => {
+    eventListenerButton(tool);
+  });
+}
+
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
   cursorCommand = null;
-  if (currentSticker) {
-    currentLineCommand = new LineCommand(
-      e.offsetX,
-      e.offsetY,
-      lineWidth,
-      currentSticker,
-    );
+  if (currentSticker && currentSticker != "*") {
+    currentStickerCommand = new Sticker(e.offsetX, e.offsetY, currentSticker);
+    commands.push(currentStickerCommand);
+    redoCommands.splice(zero, redoCommands.length);
+    notify("drawing-changed");
+  } else if (currentSticker == "*") {
+    currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
     commands.push(currentLineCommand);
     redoCommands.splice(zero, redoCommands.length);
     notify("drawing-changed");
@@ -176,9 +189,9 @@ canvas.addEventListener("mousemove", (e) => {
   if (e.buttons == one) {
     cursorCommand = null;
     if (currentSticker == "*") {
-      currentLineCommand?.points.push(
-        new CursorCommand(e.offsetX, e.offsetY, cursorSize, currentSticker),
-      );
+      currentLineCommand?.drag(e.offsetX, e.offsetY);
+    } else if (currentSticker != "*") {
+      currentStickerCommand?.drag(e.offsetX, e.offsetY);
     }
     notify("drawing-changed");
   }
@@ -186,9 +199,6 @@ canvas.addEventListener("mousemove", (e) => {
 
 canvas.addEventListener("mouseup", (e) => {
   if (currentSticker) {
-    if (currentSticker != "*") {
-      commands.push(new Sticker(e.offsetX, e.offsetY, currentSticker));
-    }
     currentLineCommand = null;
     cursorCommand = new CursorCommand(
       e.offsetX,
@@ -199,12 +209,6 @@ canvas.addEventListener("mouseup", (e) => {
     notify("drawing-changed");
   }
 });
-
-for (const tool of tools) {
-  tool.button.addEventListener("click", () => {
-    eventListener(tool);
-  });
-}
 
 canvas.addEventListener("mouseout", () => {
   cursorCommand = null;
@@ -224,7 +228,7 @@ canvas.addEventListener("mouseenter", (e) => {
 });
 
 //refactor attempt for clickable buttons
-function eventListener(button: Buttons) {
+function eventListenerButton(button: Buttons) {
   if (button.buttonText == "clear") {
     commands.splice(zero, commands.length);
     notify("drawing-changed");
@@ -248,19 +252,13 @@ function eventListener(button: Buttons) {
     currentSticker = "*";
     lineWidth = (one + one) * (one + one) * (one + one);
     cursorSize = lineWidth * (one + one + one + one);
-  } else if (button.buttonText == "💀") {
-    currentSticker = "💀";
-    lineWidth = (one + one) * (one + one) * (one + one);
-    cursorSize = lineWidth * (one + one + one + one);
-  } else if (button.buttonText == "🎃") {
-    currentSticker = "🎃";
-    lineWidth = (one + one) * (one + one) * (one + one);
-    cursorSize = lineWidth * (one + one + one + one);
-  } else if (button.buttonText == "👻") {
-    currentSticker = "👻";
-    lineWidth = (one + one) * (one + one) * (one + one);
-    cursorSize = lineWidth * (one + one + one + one);
   }
+}
+
+function eventListenerSticker(str: string) {
+  currentSticker = str;
+  lineWidth = (one + one) * (one + one) * (one + one);
+  cursorSize = lineWidth * (one + one + one + one);
 }
 
 function redraw() {

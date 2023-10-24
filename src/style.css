@@ -68,6 +68,10 @@ button:focus-visible {
 canvas {
   filter: drop-shadow(5px 5px);
   border-radius: 20px;
+  position: absolute;
+  top: 1em;
+  text-align: center;
+  right: 40em;
 }
 
 @media (prefers-color-scheme: light) {
@@ -84,6 +88,6 @@ canvas {
     background-color: #f9f9f9;
   }
   canvas {
-    background-color: green;
+    background-color: #d3d3d3;
   }
 }
