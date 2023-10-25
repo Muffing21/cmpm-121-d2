@@ -6,7 +6,7 @@ const app: HTMLDivElement = document.querySelector("#app")!;
 const zero = 0;
 const one = 1;
 let currentSticker: string | null = null;
-let stickerButton: HTMLButtonElement[] = [];
+const stickerButton: HTMLButtonElement[] = [];
 
 class CursorCommand {
   x: number;
@@ -17,7 +17,7 @@ class CursorCommand {
     x: number,
     y: number,
     cursorFontSize: number,
-    cursorSticker: string,
+    cursorSticker: string
   ) {
     this.x = x;
     this.y = y;
@@ -30,7 +30,7 @@ class CursorCommand {
     ctx.fillText(
       `${this.cursorSticker}`,
       this.x - (one + one) * (one + one) * (one + one),
-      this.y + (one + one) * (one + one) * (one + one) * (one + one),
+      this.y + (one + one) * (one + one) * (one + one) * (one + one)
     );
   }
 }
@@ -113,7 +113,7 @@ const tools: Buttons[] = [
   },
 ];
 
-let stickers: string[] = ["💀", "🎃", "👻"];
+const stickers: string[] = ["💀", "🎃", "👻", "custom sticker"];
 
 const canvas: HTMLCanvasElement = document.createElement("canvas");
 canvas.height = 256;
@@ -123,14 +123,8 @@ app.append(canvas);
 
 createButtons(tools); //create all the clickable non-sticker buttons
 
-//create all sticker buttons
-for (let i = 0; i < stickers.length; i++) {
-  stickerButton[i] = document.createElement("button");
-  stickerButton[i].innerHTML = stickers[i];
-  app.append(stickerButton[i]);
-  stickerButton[i].addEventListener("click", () => {
-    eventListenerSticker(stickerButton[i].innerHTML);
-  });
+for (const sticker of stickers) {
+  createStickerButtons(sticker);
 }
 
 const bus = new EventTarget();
@@ -158,6 +152,9 @@ for (const tool of tools) {
     eventListenerButton(tool);
   });
 }
+for (const stickerbutton of stickerButton) {
+  listenCustomSticker(stickerbutton);
+}
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
@@ -181,7 +178,7 @@ canvas.addEventListener("mousemove", (e) => {
       e.offsetX,
       e.offsetY,
       cursorSize,
-      currentSticker,
+      currentSticker
     );
   }
   notify("tool-moved");
@@ -204,7 +201,7 @@ canvas.addEventListener("mouseup", (e) => {
       e.offsetX,
       e.offsetY,
       cursorSize,
-      currentSticker,
+      currentSticker
     );
     notify("drawing-changed");
   }
@@ -221,7 +218,7 @@ canvas.addEventListener("mouseenter", (e) => {
       e.offsetX,
       e.offsetY,
       cursorSize,
-      currentSticker,
+      currentSticker
     );
   }
   notify("tool-moved");
@@ -257,8 +254,17 @@ function eventListenerButton(button: Buttons) {
 
 function eventListenerSticker(str: string) {
   currentSticker = str;
-  lineWidth = (one + one) * (one + one) * (one + one);
-  cursorSize = lineWidth * (one + one + one + one);
+
+  if (str == "custom sticker") {
+    const userInput = window.prompt("Type something for your custom sticker:");
+    if (userInput && userInput != "") {
+      currentSticker = userInput;
+      stickers.push(userInput);
+      createStickerButtons(userInput);
+      const latestSticker = stickerButton[stickerButton.length - one];
+      listenCustomSticker(latestSticker);
+    }
+  }
 }
 
 function redraw() {
@@ -283,4 +289,17 @@ function createButtons(buttons: Buttons[]) {
   appTitle.innerHTML = "Draw";
   app.append(header);
   app.append(appTitle);
+}
+
+function createStickerButtons(str: string) {
+  const temp: HTMLButtonElement = document.createElement("button");
+  temp.innerHTML = str;
+  stickerButton.push(temp);
+  app.append(temp);
+}
+
+function listenCustomSticker(stickerbutton: HTMLButtonElement) {
+  stickerbutton.addEventListener("click", () => {
+    eventListenerSticker(stickerbutton.innerHTML);
+  });
 }
