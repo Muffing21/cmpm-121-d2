@@ -5,6 +5,7 @@ const app: HTMLDivElement = document.querySelector("#app")!;
 //due to magic numbers...
 const zero = 0;
 const one = 1;
+const four = 4;
 let currentSticker: string | null = null;
 const stickerButton: HTMLButtonElement[] = [];
 
@@ -113,6 +114,10 @@ const tools: Buttons[] = [
   },
 ];
 
+const exportButton = document.createElement("button");
+exportButton.innerHTML = "export";
+app.append(exportButton);
+
 const stickers: string[] = ["💀", "🎃", "👻", "custom sticker"];
 
 const canvas: HTMLCanvasElement = document.createElement("canvas");
@@ -155,6 +160,8 @@ for (const tool of tools) {
 for (const stickerbutton of stickerButton) {
   listenCustomSticker(stickerbutton);
 }
+
+exportButton.addEventListener("click", exportListener);
 
 //https://shoddy-paint.glitch.me/paint0.html
 canvas.addEventListener("mousedown", (e) => {
@@ -287,6 +294,7 @@ function createButtons(buttons: Buttons[]) {
 
   const appTitle: HTMLElement = document.createElement("h1");
   appTitle.innerHTML = "Draw";
+
   app.append(header);
   app.append(appTitle);
 }
@@ -302,4 +310,17 @@ function listenCustomSticker(stickerbutton: HTMLButtonElement) {
   stickerbutton.addEventListener("click", () => {
     eventListenerSticker(stickerbutton.innerHTML);
   });
+}
+
+function exportListener() {
+  const canvasExport: HTMLCanvasElement = document.createElement("canvas");
+  canvasExport.height = 1024;
+  canvasExport.width = 1024;
+  const ctxExport = canvasExport.getContext("2d")!;
+  commands.forEach((cmd) => cmd.execute(ctxExport));
+  ctxExport.scale(four, four);
+  const anchor = document.createElement("a");
+  anchor.href = canvasExport.toDataURL("image/png");
+  anchor.download = "sketchpad.png";
+  anchor.click();
 }
