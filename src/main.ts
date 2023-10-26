@@ -2,37 +2,23 @@ import "./style.css";
 
 const app: HTMLDivElement = document.querySelector("#app")!;
 
-//due to magic numbers...
-const zero = 0;
-const one = 1;
-const four = 4;
 let currentSticker: string | null = null;
 const stickerButton: HTMLButtonElement[] = [];
 
 class CursorCommand {
   x: number;
   y: number;
-  cursorFontSize: number;
   cursorSticker: string;
-  constructor(
-    x: number,
-    y: number,
-    cursorFontSize: number,
-    cursorSticker: string
-  ) {
+  constructor(x: number, y: number, cursorSticker: string) {
     this.x = x;
     this.y = y;
-    this.cursorFontSize = cursorFontSize;
     this.cursorSticker = cursorSticker;
   }
   execute() {
-    ctx.font = `${this.cursorFontSize}px monospace`;
-
-    ctx.fillText(
-      `${this.cursorSticker}`,
-      this.x - (one + one) * (one + one) * (one + one),
-      this.y + (one + one) * (one + one) * (one + one) * (one + one)
-    );
+    ctx.font = `${cursorSize}px monospace`;
+    const xShift = 8;
+    const yShift = 16;
+    ctx.fillText(`${this.cursorSticker}`, this.x - xShift, this.y + yShift);
   }
 }
 
@@ -45,15 +31,21 @@ class Sticker implements DrawingCommand {
   cursorSticker: string;
   x: number;
   y: number;
-  constructor(x: number, y: number, cursorSticker: string) {
+  stickerSize: number;
+  constructor(
+    x: number,
+    y: number,
+    cursorSticker: string,
+    stickerSize: number,
+  ) {
     this.cursorSticker = cursorSticker;
     this.x = x;
     this.y = y;
+    this.stickerSize = stickerSize;
   }
   execute(ctx: CanvasRenderingContext2D) {
-    // ctx.save();
+    ctx.font = `${this.stickerSize}px monospace`;
     ctx.fillText(this.cursorSticker, this.x, this.y);
-    // ctx.restore();
   }
   drag(x: number, y: number) {
     this.x = x;
@@ -73,7 +65,8 @@ class LineCommand implements DrawingCommand {
     ctx.strokeStyle = "black";
     ctx.lineWidth = this.thickness;
     ctx.beginPath();
-    const { x, y } = this.points[zero];
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    const { x, y } = this.points[0];
     ctx.moveTo(x, y);
     for (const { x, y } of this.points) {
       ctx.lineTo(x, y);
@@ -85,34 +78,26 @@ class LineCommand implements DrawingCommand {
   }
 }
 
+enum ButtonName {
+  clear = "clear",
+  undo = "undo",
+  redo = "redo",
+  thin = "thin",
+  thick = "thick",
+}
+
 //probably better to use enum
 interface Buttons {
   button: HTMLButtonElement;
-  buttonText: string;
+  buttonText: ButtonName;
 }
 
-const tools: Buttons[] = [
-  {
+const tools: Buttons[] = Object.values(ButtonName).map((buttonText) => {
+  return {
     button: document.createElement("button"),
-    buttonText: "clear",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "undo",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "redo",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "thin",
-  },
-  {
-    button: document.createElement("button"),
-    buttonText: "thick",
-  },
-];
+    buttonText,
+  };
+});
 
 const exportButton = document.createElement("button");
 exportButton.innerHTML = "export";
@@ -134,7 +119,8 @@ for (const sticker of stickers) {
 
 const bus = new EventTarget();
 
-function notify(name: string) {
+type EventName = "drawing-changed" | "tool-moved";
+function notify(name: EventName) {
   bus.dispatchEvent(new Event(name));
 }
 
@@ -144,6 +130,7 @@ let currentStickerCommand: Sticker | null = null;
 
 let lineWidth = 4;
 let cursorSize = 32;
+const STICKER_SIZE = 32;
 
 let cursorCommand: CursorCommand | null = null;
 
@@ -152,11 +139,42 @@ bus.addEventListener("tool-moved", redraw);
 
 let currentLineCommand: LineCommand | null = null;
 
+const toolClickHandlers: Record<ButtonName, () => void> = {
+  clear() {
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    commands.splice(0, commands.length);
+    notify("drawing-changed");
+  },
+  undo() {
+    const lastAction = commands.pop();
+    if (lastAction) {
+      redoCommands.push(lastAction);
+      notify("drawing-changed");
+    }
+  },
+  redo() {
+    const lastAction = redoCommands.pop();
+    if (lastAction) {
+      commands.push(lastAction);
+      notify("drawing-changed");
+    }
+  },
+  thin() {
+    currentSticker = "*";
+    lineWidth = THIN_WIDTH;
+    cursorSize = lineWidth * CURSOR_SIZE_BOOST;
+  },
+  thick() {
+    currentSticker = "*";
+    lineWidth = THICK_WIDTH;
+    cursorSize = lineWidth * CURSOR_SIZE_BOOST;
+  },
+};
+
 for (const tool of tools) {
-  tool.button.addEventListener("click", () => {
-    eventListenerButton(tool);
-  });
+  tool.button.addEventListener("click", toolClickHandlers[tool.buttonText]);
 }
+
 for (const stickerbutton of stickerButton) {
   listenCustomSticker(stickerbutton);
 }
@@ -167,30 +185,33 @@ exportButton.addEventListener("click", exportListener);
 canvas.addEventListener("mousedown", (e) => {
   cursorCommand = null;
   if (currentSticker && currentSticker != "*") {
-    currentStickerCommand = new Sticker(e.offsetX, e.offsetY, currentSticker);
+    currentStickerCommand = new Sticker(
+      e.offsetX,
+      e.offsetY,
+      currentSticker,
+      STICKER_SIZE,
+    );
     commands.push(currentStickerCommand);
-    redoCommands.splice(zero, redoCommands.length);
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    redoCommands.splice(0, redoCommands.length);
     notify("drawing-changed");
   } else if (currentSticker == "*") {
     currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
     commands.push(currentLineCommand);
-    redoCommands.splice(zero, redoCommands.length);
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    redoCommands.splice(0, redoCommands.length);
     notify("drawing-changed");
   }
 });
 
 canvas.addEventListener("mousemove", (e) => {
   if (currentSticker) {
-    cursorCommand = new CursorCommand(
-      e.offsetX,
-      e.offsetY,
-      cursorSize,
-      currentSticker
-    );
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
   }
   notify("tool-moved");
 
-  if (e.buttons == one) {
+  // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+  if (e.buttons == 1) {
     cursorCommand = null;
     if (currentSticker == "*") {
       currentLineCommand?.drag(e.offsetX, e.offsetY);
@@ -204,12 +225,7 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseup", (e) => {
   if (currentSticker) {
     currentLineCommand = null;
-    cursorCommand = new CursorCommand(
-      e.offsetX,
-      e.offsetY,
-      cursorSize,
-      currentSticker
-    );
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
     notify("drawing-changed");
   }
 });
@@ -221,43 +237,14 @@ canvas.addEventListener("mouseout", () => {
 
 canvas.addEventListener("mouseenter", (e) => {
   if (currentSticker == "*") {
-    cursorCommand = new CursorCommand(
-      e.offsetX,
-      e.offsetY,
-      cursorSize,
-      currentSticker
-    );
+    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
   }
   notify("tool-moved");
 });
 
-//refactor attempt for clickable buttons
-function eventListenerButton(button: Buttons) {
-  if (button.buttonText == "clear") {
-    commands.splice(zero, commands.length);
-    notify("drawing-changed");
-  } else if (button.buttonText == "undo") {
-    const lastAction = commands.pop();
-    if (lastAction) {
-      redoCommands.push(lastAction);
-      notify("drawing-changed");
-    }
-  } else if (button.buttonText == "redo") {
-    const lastAction = redoCommands.pop();
-    if (lastAction) {
-      commands.push(lastAction);
-      notify("drawing-changed");
-    }
-  } else if (button.buttonText == "thin") {
-    currentSticker = "*";
-    lineWidth = one + one;
-    cursorSize = lineWidth * (one + one + one + one + one + one);
-  } else if (button.buttonText == "thick") {
-    currentSticker = "*";
-    lineWidth = (one + one) * (one + one) * (one + one);
-    cursorSize = lineWidth * (one + one + one + one);
-  }
-}
+const CURSOR_SIZE_BOOST = 6;
+const THIN_WIDTH = 2;
+const THICK_WIDTH = 6;
 
 function eventListenerSticker(str: string) {
   currentSticker = str;
@@ -268,14 +255,16 @@ function eventListenerSticker(str: string) {
       currentSticker = userInput;
       stickers.push(userInput);
       createStickerButtons(userInput);
-      const latestSticker = stickerButton[stickerButton.length - one];
+      // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+      const latestSticker = stickerButton[stickerButton.length - 1];
       listenCustomSticker(latestSticker);
     }
   }
 }
 
 function redraw() {
-  ctx.clearRect(zero, zero, canvas.width, canvas.height);
+  // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   commands.forEach((cmd) => cmd.execute(ctx));
 
@@ -316,9 +305,10 @@ function exportListener() {
   const canvasExport: HTMLCanvasElement = document.createElement("canvas");
   canvasExport.height = 1024;
   canvasExport.width = 1024;
+  const scaleFactor = canvasExport.width / canvas.width;
   const ctxExport = canvasExport.getContext("2d")!;
+  ctxExport.scale(scaleFactor, scaleFactor);
   commands.forEach((cmd) => cmd.execute(ctxExport));
-  ctxExport.scale(four, four);
   const anchor = document.createElement("a");
   anchor.href = canvasExport.toDataURL("image/png");
   anchor.download = "sketchpad.png";
