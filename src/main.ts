@@ -36,7 +36,7 @@ class Sticker implements DrawingCommand {
     x: number,
     y: number,
     cursorSticker: string,
-    stickerSize: number
+    stickerSize: number,
   ) {
     this.cursorSticker = cursorSticker;
     this.x = x;
@@ -189,7 +189,7 @@ canvas.addEventListener("mousedown", (e) => {
       e.offsetX,
       e.offsetY,
       currentSticker,
-      STICKER_SIZE
+      STICKER_SIZE,
     );
     commands.push(currentStickerCommand);
     // eslint-disable-next-line @typescript-eslint/no-magic-numbers

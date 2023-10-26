@@ -30,11 +30,14 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  color: green;
 }
 
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+  color: blue;
+  font-family: "serif";
 }
 
 #app {
@@ -54,6 +57,12 @@ button {
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+  box-shadow:
+    0 8px 16px 0 rgba(0, 0, 0, 0.2),
+    0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  width: 100px;
+  font-family: "Times New Roman";
+  font-weight: 600;
 }
 
 button:hover {
@@ -70,8 +79,7 @@ canvas {
   border-radius: 20px;
   position: absolute;
   top: 1em;
-  text-align: center;
-  right: 40em;
+  right: 50em;
 }
 
 @media (prefers-color-scheme: light) {
