@@ -3,21 +3,28 @@ import "./style.css";
 const app: HTMLDivElement = document.querySelector("#app")!;
 
 let currentSticker: string | null = null;
+let currentColor = "black";
 const stickerButton: HTMLButtonElement[] = [];
+let colorCounter = 0;
+const numColors = 5;
 
 class CursorCommand {
   x: number;
   y: number;
   cursorSticker: string;
-  constructor(x: number, y: number, cursorSticker: string) {
+  color: string;
+  constructor(x: number, y: number, cursorSticker: string, color: string) {
     this.x = x;
     this.y = y;
     this.cursorSticker = cursorSticker;
+    this.color = color;
   }
   execute() {
+    ctx.fillStyle = this.color;
     ctx.font = `${cursorSize}px monospace`;
     const xShift = 8;
     const yShift = 16;
+
     ctx.fillText(`${this.cursorSticker}`, this.x - xShift, this.y + yShift);
   }
 }
@@ -32,18 +39,22 @@ class Sticker implements DrawingCommand {
   x: number;
   y: number;
   stickerSize: number;
+  stickerColor: string;
   constructor(
     x: number,
     y: number,
     cursorSticker: string,
     stickerSize: number,
+    stickerColor: string,
   ) {
     this.cursorSticker = cursorSticker;
     this.x = x;
     this.y = y;
     this.stickerSize = stickerSize;
+    this.stickerColor = stickerColor;
   }
   execute(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = this.stickerColor;
     ctx.font = `${this.stickerSize}px monospace`;
     ctx.fillText(this.cursorSticker, this.x, this.y);
   }
@@ -56,13 +67,15 @@ class Sticker implements DrawingCommand {
 class LineCommand implements DrawingCommand {
   points: { x: number; y: number }[];
   thickness: number;
-  constructor(x: number, y: number, thickness: number) {
+  color: string;
+  constructor(x: number, y: number, thickness: number, color: string) {
     //remove sticker, also just hold x and y rather than a point
     this.points = [{ x, y }];
     this.thickness = thickness;
+    this.color = color;
   }
   execute(ctx: CanvasRenderingContext2D) {
-    ctx.strokeStyle = "black";
+    ctx.strokeStyle = this.color;
     ctx.lineWidth = this.thickness;
     ctx.beginPath();
     // eslint-disable-next-line @typescript-eslint/no-magic-numbers
@@ -84,9 +97,9 @@ enum ButtonName {
   redo = "redo",
   thin = "thin",
   thick = "thick",
+  color = "color",
 }
 
-//probably better to use enum
 interface Buttons {
   button: HTMLButtonElement;
   buttonText: ButtonName;
@@ -104,6 +117,7 @@ exportButton.innerHTML = "export";
 app.append(exportButton);
 
 const stickers: string[] = ["💀", "🎃", "👻", "custom sticker"];
+const colors: string[] = ["black", "orange", "green", "red", "blue"];
 
 const canvas: HTMLCanvasElement = document.createElement("canvas");
 canvas.height = 256;
@@ -163,11 +177,27 @@ const toolClickHandlers: Record<ButtonName, () => void> = {
     currentSticker = "*";
     lineWidth = THIN_WIDTH;
     cursorSize = lineWidth * CURSOR_SIZE_BOOST;
+    colorCounter = getRandomInt(numColors);
+    currentColor = colors[colorCounter];
   },
   thick() {
     currentSticker = "*";
     lineWidth = THICK_WIDTH;
     cursorSize = lineWidth * CURSOR_SIZE_BOOST;
+    colorCounter = getRandomInt(numColors);
+    currentColor = colors[colorCounter];
+  },
+  color() {
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    console.log(colorCounter);
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    colorCounter += 1;
+    if (colorCounter == numColors) {
+      // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+      colorCounter = 0;
+    }
+
+    currentColor = colors[colorCounter];
   },
 };
 
@@ -190,13 +220,19 @@ canvas.addEventListener("mousedown", (e) => {
       e.offsetY,
       currentSticker,
       STICKER_SIZE,
+      currentColor,
     );
     commands.push(currentStickerCommand);
     // eslint-disable-next-line @typescript-eslint/no-magic-numbers
     redoCommands.splice(0, redoCommands.length);
     notify("drawing-changed");
   } else if (currentSticker == "*") {
-    currentLineCommand = new LineCommand(e.offsetX, e.offsetY, lineWidth);
+    currentLineCommand = new LineCommand(
+      e.offsetX,
+      e.offsetY,
+      lineWidth,
+      currentColor,
+    );
     commands.push(currentLineCommand);
     // eslint-disable-next-line @typescript-eslint/no-magic-numbers
     redoCommands.splice(0, redoCommands.length);
@@ -206,7 +242,12 @@ canvas.addEventListener("mousedown", (e) => {
 
 canvas.addEventListener("mousemove", (e) => {
   if (currentSticker) {
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      currentSticker,
+      currentColor,
+    );
   }
   notify("tool-moved");
 
@@ -225,7 +266,12 @@ canvas.addEventListener("mousemove", (e) => {
 canvas.addEventListener("mouseup", (e) => {
   if (currentSticker) {
     currentLineCommand = null;
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      currentSticker,
+      currentColor,
+    );
     notify("drawing-changed");
   }
 });
@@ -237,7 +283,12 @@ canvas.addEventListener("mouseout", () => {
 
 canvas.addEventListener("mouseenter", (e) => {
   if (currentSticker == "*") {
-    cursorCommand = new CursorCommand(e.offsetX, e.offsetY, currentSticker);
+    cursorCommand = new CursorCommand(
+      e.offsetX,
+      e.offsetY,
+      currentSticker,
+      currentColor,
+    );
   }
   notify("tool-moved");
 });
@@ -282,7 +333,7 @@ function createButtons(buttons: Buttons[]) {
   header.innerHTML = "Harry's Game";
 
   const appTitle: HTMLElement = document.createElement("h1");
-  appTitle.innerHTML = "Draw";
+  appTitle.innerHTML = "Welcome To Art Class";
 
   app.append(header);
   app.append(appTitle);
@@ -313,4 +364,8 @@ function exportListener() {
   anchor.href = canvasExport.toDataURL("image/png");
   anchor.download = "sketchpad.png";
   anchor.click();
+}
+
+function getRandomInt(max: number) {
+  return Math.floor(Math.random() * max);
 }
